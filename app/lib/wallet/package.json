@@ -6,15 +6,12 @@
   "author": "",
   "license": "GPL-2.0+",
   "dependencies": {
-    "bip39": "~1.1.0",
-    "workerify": "git://github.com/weilu/workerify.git",
-    "envify": "^1.2.1",
-    "pouchdb": "2.2.3"
+    "bip39": "^2.1.2",
+    "bitcoinjs-lib": "git://github.com/LTEX-DEV/bitcoinjs-lib.git#1.5.x",
+    "cb-wallet": "git://github.com/LTEX-DEV/cb-wallet.git",
+    "webworkify": "^1.0.0"
   },
-  "browserify": {
-    "transform": [
-      "workerify",
-      "envify"
-    ]
+  "devDependencies": {
+    "sinon": "^1.10.3"
   }
 }

@@ -1,103 +1,21 @@
 'use strict';
 
-var Bitcoin = require('bitcoinjs-lib')
-var worker = new Worker('./worker.js')
+var work = require('webworkify')
+var worker = work(require('./worker.js'))
 var auth = require('./auth')
 var db = require('./db')
 var emitter = require('hive-emitter')
 var crypto = require('crypto')
 var AES = require('hive-aes')
 var denominations = require('hive-denomination')
-var ThirdParty = require('hive-thrid-party-api')
-var API = ThirdParty.Blockr
-var uniqueify = require('uniqueify')
-var async = require('async')
+var Wallet = require('cb-wallet')
 var validateSend = require('./validator')
 var rng = require('secure-random').randomBuffer
+var bitcoin = require('bitcoinjs-lib')
 
-var Transaction = Bitcoin.Transaction
-var Wallet = Bitcoin.Wallet
-
-var api = null
 var wallet = null
 var seed = null
 var id = null
-
-function sendTx(tx, callback) {
-  var txHex = tx.toHex()
-  api.sendTx(txHex, function(err){
-    if(err) { return callback(err) }
-
-    processPendingTx(tx)
-
-    db.addPendingTx(txHex, function(err){
-      if(err) { console.log("failed to save pending transaction to local db") }
-      callback(null, api.txToHiveTx(tx))
-    })
-  })
-}
-
-function processPendingTx(tx) {
-  wallet.processPendingTx(tx)
-
-  if(addressUsed(wallet.currentAddress)){ // in case one sends to him/her self
-    wallet.currentAddress = nextReceiveAddress()
-  }
-  if(addressUsed(wallet.changeAddresses[wallet.changeAddresses.length  - 1])){
-    wallet.generateChangeAddress()
-  }
-}
-
-function processLocalPendingTxs(callback) {
-  // only pending spending txs are kept locally
-  db.getPendingTxs(function(err, txs){
-    if(err) return callback(err);
-    var txObjs = txs
-      .map(Transaction.fromHex)
-      .filter(function(tx){
-        // keep tx whose input has not been consumed
-        return tx.ins.some(function(input){
-          var hashClone = new Buffer(input.hash.length)
-          input.hash.copy(hashClone)
-          var txId = [].reverse.call(hashClone).toString('hex')
-          return (txId + ":" + input.index in wallet.outputs)
-        })
-      })
-
-    txObjs.forEach(processPendingTx)
-
-    db.setPendingTxs(txObjs.map(function(tx){
-      return tx.toHex()
-    }), ignoreError)
-
-    callback(null, txObjs.map(api.txToHiveTx.bind(api)))
-  })
-
-  function ignoreError(err){
-    if(err) console.error("failed to remove pending txs from db", err)
-  }
-}
-
-function addressUsed(address){
-  for (var key in wallet.outputs){
-    var output = wallet.outputs[key]
-    if(output.address === address) {
-      return true
-    }
-  }
-  return false
-}
-
-function nextReceiveAddress() {
-  var address = wallet.currentAddress
-  var addressIndex = wallet.addresses.indexOf(address)
-  if(addressIndex === wallet.addresses.length - 1){
-    address = wallet.generateAddress()
-  } else {
-    address = wallet.addresses[addressIndex + 1]
-  }
-  return address
-}
 
 function createWallet(passphrase, network, callback) {
   var message = passphrase ? 'Decoding seed phrase' : 'Generating'
@@ -111,7 +29,9 @@ function createWallet(passphrase, network, callback) {
   worker.postMessage(data)
 
   worker.addEventListener('message', function(e) {
-    var mnemonic = initWallet(e.data, network)
+    assignSeedAndId(e.data.seed)
+
+    var mnemonic = e.data.mnemonic
     auth.exist(id, function(err, userExists){
       if(err) return callback(err);
 
@@ -125,18 +45,38 @@ function createWallet(passphrase, network, callback) {
   })
 }
 
-function setPin(pin, callback) {
-  //TODO: captcha
+function callbackError(err, callbacks) {
+  callbacks.forEach(function(fn) {
+    if(fn != null) fn(err)
+  })
+}
+
+function setPin(pin, network, done, unspentsDone, balanceDone) {
+  var callbacks = [done, unspentsDone, balanceDone]
   auth.register(id, pin, function(err, token){
-    if(err) return callback(err.error);
+    if(err) return callbackError(err.error, callbacks);
 
     emitter.emit('wallet-auth', {token: token, pin: pin})
 
     var encrypted = AES.encrypt(seed, token)
     db.saveEncrypedSeed(id, encrypted, function(err){
-      if(err) return callback(err);
+      if(err) return callbackError(err.error, callbacks);
 
-      firstTimeSync(callback)
+      var accounts = getAccountsFromSeed(network)
+      initWallet(accounts.externalAccount, accounts.internalAccount, network,
+                 done, unspentsDone, balanceDone)
+    })
+  })
+}
+
+function resetPin(callback) {
+  db.getCredentials(function(err, credentials){
+    if(err) return callback(err);
+
+    auth.resetPin(credentials.id, function() {
+      db.deleteCredentials(credentials, function(){
+        callback('user_deleted')
+      })
     })
   })
 }
@@ -145,9 +85,10 @@ function disablePin(pin, callback) {
   auth.disablePin(id, pin, callback)
 }
 
-function openWalletWithPin(pin, network, syncDone) {
+function openWalletWithPin(pin, network, done, unspentsDone, balanceDone) {
+  var callbacks = [done, unspentsDone, balanceDone]
   db.getCredentials(function(err, credentials){
-    if(err) return syncDone(err);
+    if(err) return callbackError(err, callbacks);
 
     var id = credentials.id
     var encryptedSeed = credentials.seed
@@ -155,217 +96,99 @@ function openWalletWithPin(pin, network, syncDone) {
       if(err){
         if(err.error === 'user_deleted') {
           return db.deleteCredentials(credentials, function(){
-            syncDone(err.error);
+            callbackError(err.error, callbacks);
           })
         }
-        return syncDone(err.error)
+        return callbackError(err.error, callbacks)
       }
 
-      initWallet({seed: AES.decrypt(encryptedSeed, token)}, network)
+      assignSeedAndId(AES.decrypt(encryptedSeed, token))
       emitter.emit('wallet-auth', {token: token, pin: pin})
 
-      firstTimeSync(syncDone)
+      var accounts = getAccountsFromSeed(network)
+      initWallet(accounts.externalAccount, accounts.internalAccount, network,
+                 done, unspentsDone, balanceDone)
     })
   })
 }
 
-function initWallet(data, network) {
-  seed = data.seed
+function assignSeedAndId(s) {
+  seed = s
   id = crypto.createHash('sha256').update(seed).digest('hex')
   emitter.emit('wallet-init', {seed: seed, id: id})
+}
 
-  wallet = new Wallet(new Buffer(seed, 'hex'), Bitcoin.networks[network])
-  api = new API(network)
+function getAccountsFromSeed(networkName, done) {
+  emitter.emit('wallet-opening', 'Synchronizing Wallet')
 
-  wallet.sendTx = sendTx
-  wallet.denomination = denominations[network].default
+  var network = bitcoin.networks[networkName]
+  var accountZero = bitcoin.HDNode.fromSeedHex(seed, network).deriveHardened(0)
 
-  return data.mnemonic
+  return {
+    externalAccount: accountZero.derive(0),
+    internalAccount: accountZero.derive(1)
+  }
+}
+
+function initWallet(externalAccount, internalAccount, networkName, done, unspentsDone, balanceDone){
+  var network = bitcoin.networks[networkName]
+
+  wallet = new Wallet(externalAccount, internalAccount, networkName, function(err, w) {
+    if(err) return done(err)
+
+    var txObjs = wallet.getTransactionHistory()
+    done(null, txObjs.map(function(tx) {
+      return parseTx(wallet, tx)
+    }))
+  }, unspentsDone, balanceDone)
+
+  wallet.denomination = denominations[networkName].default
+}
+
+function parseTx(wallet, tx) {
+  var id = tx.getId()
+  var metadata = wallet.txMetadata[id]
+  var network = bitcoin.networks[wallet.networkName]
+
+  var timestamp = metadata.timestamp
+  timestamp = timestamp ? timestamp * 1000 : new Date().getTime()
+
+  var node = wallet.txGraph.findNodeById(id)
+  var prevOutputs = node.prevNodes.reduce(function(inputs, n) {
+    inputs[n.id] = n.tx.outs
+    return inputs
+  }, {})
+
+  var inputs = tx.ins.map(function(input) {
+    var buffer = new Buffer(input.hash)
+    Array.prototype.reverse.call(buffer)
+    var inputTxId = buffer.toString('hex')
+
+    return prevOutputs[inputTxId][input.index]
+  })
+
+  return {
+    id: id,
+    amount: metadata.value,
+    timestamp: timestamp,
+    confirmations: metadata.confirmations,
+    fee: metadata.fee,
+    ins: parseOutputs(inputs, network),
+    outs: parseOutputs(tx.outs, network)
+  }
+
+  function parseOutputs(outputs, network) {
+    return outputs.map(function(output){
+      return {
+        address: bitcoin.Address.fromOutputScript(output.script, network).toString(),
+        amount: output.value
+      }
+    })
+  }
 }
 
 function sync(done) {
-  var unconfirmedTxs = []
-
-  async.parallel([
-    fetchReceiveAddressTransactions,
-    fetchReceiveAddressUnconfirmedTransactions,
-    fetchChangeAddressSentTransactions,
-    fetchChangeAddressUnconfirmedSentTransactions
-  ], function(err, results){
-    if(err) return done(err);
-
-    var txs = results.reduce(function(memo, e){ return memo.concat(e)}, [])
-
-    setUnspentOutputs(function(err){
-      if(err) return done(err);
-
-      unconfirmedTxs.forEach(processPendingTx)
-
-      processLocalPendingTxs(function(err, pendingTxs){
-        if(err) return done(err);
-
-        txs = txs.concat(pendingTxs)
-        done(null, consolidateTransactions(txs))
-      })
-    })
-  })
-
-  function fetchReceiveAddressTransactions(callback){
-    api.getTransactions(wallet.addresses, callback)
-  }
-
-  function fetchReceiveAddressUnconfirmedTransactions(callback){
-    api.getUnconfirmedTransactions(wallet.addresses, function(err, txs){
-      if(err) return callback(err);
-
-      unconfirmedTxs = unconfirmedTxs.concat(getTxObjs(txs))
-      callback(null, txs)
-    })
-  }
-
-  function fetchChangeAddressSentTransactions(callback){
-    api.getTransactions(wallet.changeAddresses, function(err, txs){
-      if(err) return callback(err);
-
-      callback(null, getSentTransactions(txs))
-    })
-  }
-
-  function fetchChangeAddressUnconfirmedSentTransactions(callback){
-    api.getUnconfirmedTransactions(wallet.changeAddresses, function(err, txs){
-      if(err) return callback(err);
-
-      var sentTxs = getSentTransactions(txs)
-      unconfirmedTxs = unconfirmedTxs.concat(getTxObjs(sentTxs))
-      callback(null, sentTxs)
-    })
-  }
-
-  function getSentTransactions(txs){
-    return txs.filter(function(tx){
-      return tx.amount < 0
-    })
-  }
-
-  function getTxObjs(txs) {
-    return txs.map(function(tx){
-      return Transaction.fromHex(tx.raw)
-    })
-  }
-
-  function consolidateTransactions(transactions){
-    var sorted = sortTxsByPendingAndTimestamp(transactions)
-    sorted = mergePendingAndConfirmedTxs(sorted)
-
-    // prepare pending Txs for uniqueify
-    sorted.forEach(function(tx){
-      if(tx.pending) tx.timestamp = null;
-      delete tx.raw
-    })
-
-    return uniqueify(sorted)
-  }
-
-  function sortTxsByPendingAndTimestamp(txs){
-    // pending txs before confirmed txs
-    return txs.sort(function(tx1, tx2){
-      if(tx1.pending && !tx2.pending){
-        return -1
-      } else if(!tx1.pending && tx2.pending){
-        return 1
-      } else {
-        return tx1.timestamp > tx2.timestamp ? -1 : 1
-      }
-    })
-  }
-
-  // if a pending tx is also found in confirmed tx, treat it as confirmed
-  // (blockr bug workaround. FIXME when blockr fixes their side)
-  function mergePendingAndConfirmedTxs(txs) {
-    var pendingTxs = txs.filter(function(tx){ return tx.pending })
-    var pendingTxIds = pendingTxs.map(function(tx){ return tx.id })
-
-    var mergeTxIds = txs.filter(function(tx){
-      return !tx.pending && pendingTxIds.indexOf(tx.id) > -1
-    }).map(function(tx){
-      return tx.id
-    })
-
-    return txs.filter(function(tx){
-      return !tx.pending || mergeTxIds.indexOf(tx.id) < 0
-    })
-  }
-}
-
-function setUnspentOutputs(done){
-  var addresses = wallet.addresses.concat(wallet.changeAddresses)
-  api.getUnspent(addresses, function(err, unspent){
-    if(err) return done(err);
-
-    try {
-      wallet.setUnspentOutputs(unspent)
-    } catch(err) {
-      return done(err)
-    }
-
-    done()
-  })
-}
-
-function defaultCallback(err){ if(err) console.error(err) }
-
-function firstTimeSync(done){
-  emitter.emit('wallet-opening', 'Synchronizing Wallet')
-
-  done = done || defaultCallback
-
-  var taskCount = 2
-
-  findUnusedAddress(wallet.generateAddress, function(unusedAddress){
-    wallet.currentAddress = unusedAddress
-    maybeDone()
-  })
-
-  findUnusedAddress(wallet.generateChangeAddress, function(unusedAddress){
-    wallet.changeAddresses.splice(wallet.changeAddresses.indexOf(unusedAddress) + 1)
-    maybeDone()
-  })
-
-  function maybeDone(){
-    if(--taskCount === 0) return sync(done)
-  }
-}
-
-function findUnusedAddress(addressGenFn, done){
-  var addresses = generateAddresses(5, addressGenFn)
-  api.listAddresses(addresses, onAddresses)
-
-  function onAddresses(err, addresses) {
-    if(err) return done(err)
-
-    var unusedAddress;
-    for(var i=0; i<addresses.length; i++){
-      var address = addresses[i]
-      if(address.txCount === 0){
-        unusedAddress = address.address
-        break
-      }
-    }
-
-    if(unusedAddress) {
-      done(unusedAddress)
-    } else {
-      findUnusedAddress(addressGenFn, done)
-    }
-  }
-}
-
-function generateAddresses(n, gen) {
-  var addresses = []
-  for(var i = 0; i < n; i++){
-    addresses.push(gen.call(wallet))
-  }
-  return addresses
+  initWallet(wallet.externalAccount, wallet.internalAccount, wallet.networkName, done)
 }
 
 function getWallet(){
@@ -393,10 +216,12 @@ module.exports = {
   openWalletWithPin: openWalletWithPin,
   createWallet: createWallet,
   setPin: setPin,
+  resetPin: resetPin,
   disablePin: disablePin,
   getWallet: getWallet,
   walletExists: walletExists,
   reset: reset,
   sync: sync,
-  validateSend: validateSend
+  validateSend: validateSend,
+  parseTx: parseTx
 }

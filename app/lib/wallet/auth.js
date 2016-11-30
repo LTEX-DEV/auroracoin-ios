@@ -1,7 +1,7 @@
 'use strict';
 
 var xhr = require('hive-xhr')
-var uriRoot = require('hive-origin')
+var uriRoot = window.location.origin
 
 function register(wallet_id, pin, callback) {
   postCredentials('register', wallet_id, pin, callback)
@@ -39,6 +39,16 @@ function disablePin(wallet_id, pin, callback) {
   })
 }
 
+function resetPin(wallet_id, callback) {
+  xhr({
+    uri: uriRoot + "/reset?wallet_id=" + wallet_id,
+    method: 'GET'
+  }, function(err, resp, body){
+    var content = JSON.parse(body)
+    callback(content == null ? 'PIN reset failed' : content.error)
+  })
+}
+
 function postCredentials(endpoint, wallet_id, pin, callback) {
   xhr({
     uri: uriRoot + "/" +  endpoint,
@@ -58,5 +68,6 @@ module.exports = {
   register: register,
   login: login,
   exist: exist,
-  disablePin: disablePin
+  disablePin: disablePin,
+  resetPin: resetPin
 }
