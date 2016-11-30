@@ -1,13 +1,19 @@
 'use strict';
 
-var bitcoin = {
+/*var bitcoin = {
   default: 'BTC'
 }
-
-module.exports = {
-  bitcoin: bitcoin,
-  testnet: bitcoin,
-  litecoin: {
+var litecoin = {
     default: 'LTC'
-  }
+  }*/
+  
+module.exports = {
+  //bitcoin: bitcoin,
+  //testnet: bitcoin,
+  //litecoin:litecoin,
+  auroracoin: {
+   default: 'AUR'
 }
+
+}
+
