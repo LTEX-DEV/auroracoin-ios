@@ -17,18 +17,13 @@
 #tabs .tabs .tab {
   @include clickbtn;
   display: block;
-  padding-bottom: 5px;
-  padding-top: 8px;
+  padding-bottom: 10px;
+  padding-top: 10px;
   width: 100%;
 
   text-align: center;
 
   color: white;
-
-  @include breakpoint(iphone5) {
-    padding-bottom: 10px;
-    padding-top: 10px;
-  }
 
   @include breakpoint(portrait) {
     padding-bottom: 30px;
