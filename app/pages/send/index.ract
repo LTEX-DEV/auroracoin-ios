@@ -14,18 +14,10 @@
           </div>
         </label>
 
-        <div class="_btn qr" on-click="open-qr">
-          <span class="_icon">
-            {{>svg_qr}}
-          </span>
-          <span class="_title">Scan QR</span>
-        </div>
-
         <div class="_btn" on-click="open-geo">
           <span class="_icon">
             {{>svg_waggle}}
           </span>
-          <span class="_title">Waggle</span>
         </div>
       </div>
 
@@ -40,10 +32,9 @@
 
           {{^exchangeRateUnavailable}}
           <div class="_input-group">
-            <span on-click="open-fiat" class="fiat-tap-overlay"></span>
             <input id="fiat" class="_input" type="number" min="0" value="{{fiatValue}}" on-keyup="fiat-to-bitcoin" on-focus="focusAmountInput" on-blur="blurAmountInput">
             <span class="_currency dropdown">
-              <select id="fiatSelect" value="{{selectedFiat}}">
+              <select value="{{selectedFiat}}">
                 {{#currencies}}
                   <option value="{{.}}">{{.}}</option>
                 {{/currencies}}
@@ -54,10 +45,9 @@
 
           {{#exchangeRateUnavailable}}
           <div class="_input-group">
-            <span on-click="open-fiat" class="fiat-tap-overlay"></span>
             <input id="fiat" class="_input _error" type="number" min="0" value="{{fiatValue}}" on-keyup="fiat-to-bitcoin" on-focus="focusAmountInput" on-blur="blurAmountInput">
             <span class="_currency--error dropdown">
-              <select id="fiatSelect" value="{{selectedFiat}}">
+              <select value="{{selectedFiat}}">
                 {{#currencies}}
                   <option value="{{.}}">{{.}}</option>
                 {{/currencies}}

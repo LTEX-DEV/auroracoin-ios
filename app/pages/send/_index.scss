@@ -1,20 +1,8 @@
 
-
-#send {
-  &.content {
-    padding-bottom: 10px;
-  }
-}
-
 .send__address {
 
   display: flex;
-  margin-bottom: 10px;
-
-  @include breakpoint(iphone5) {
-    flex-flow: row wrap;
-    margin-bottom: 18px;
-  }
+  margin-bottom: 20px;
 
   .input__container {
     position: relative;
@@ -31,17 +19,11 @@
 
   ._label {
     @include noselect;
-    font-size: 14px;
     cursor: pointer;
     display: block;
-    margin-right: 5px;
-    flex-grow: 2;
+    flex: 1;
+    margin-right: 10px;
 
-    @include breakpoint(iphone5) {
-      font-size: 16px;
-      flex: 1 100%;
-      margin-right: 0px;
-    }
     @include breakpoint(portrait) {
       font-size: 20px;
     }
@@ -49,61 +31,33 @@
 
   ._btn {
     @extend .hivebtn;
-
-    margin-top: 26px;
+    margin-top: 29px;
     padding: 0;
-    width: 70px;
-    height: 44px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-
-    @include breakpoint(iphone5) {
-      flex: 2;
-      margin-top: 14px;
-      width: 42px;
-    }
+    width: 42px;
+    height: 42px;
+    position: relative;
 
     @include breakpoint(portrait) {
       margin-top: 35px;
       width: 59px;
-      height: 70px;
-    }
-
-    ._title {
-      padding-left: 5px;
-      padding-right: 6px;
-      padding-top: 4px;
-      font-size: 16px;
-
-      display: none;
-
-      @include breakpoint(iphone5) {
-        display: block;
-      }
-      @include breakpoint(portrait) {
-        font-size: 24px;
-      }
+      height: 59px;
     }
 
     ._icon {
       width: 30px;
       height: 30px;
-
-      .svg-qr, .svg-waggle {
-        @include breakpoint(iphone5) {
-          fill: #3180E7;
-        }
-      }
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      margin-top: -15px;
+      margin-left: -15px;
 
       @include breakpoint(portrait) {
         width: 44px;
         height: 44px;
+        margin-top: -22px;
+        margin-left: -22px;
       }
-    }
-
-    &.qr {
-      margin-right: 5px;
     }
   }
 
@@ -113,6 +67,7 @@
     padding-left: 10px;
     padding-right: 38px;
     border-radius: 2px;
+
     height: auto;
 
     &:active, &:focus {
@@ -134,14 +89,8 @@
 
   ._label {
     @include noselect;
-    font-size: 14px;
     cursor: pointer;
     display: block;
-    margin-bottom: 3px;
-
-    @include breakpoint(iphone5) {
-      font-size: 16px;
-    }
 
     @include breakpoint(portrait) {
       font-size: 20px;
@@ -153,7 +102,7 @@
     @include noselect;
     @extend .jigsaw-light;
     position: absolute;
-    z-index: 2000;
+    z-index: 500;
     cursor: pointer;
     display: block;
     text-align: right;
@@ -175,7 +124,6 @@
 
       &:focus {
         outline: none;
-        color: darken($blue, 30%);
       }
 
       @include breakpoint(portrait) {
@@ -200,7 +148,7 @@
     @include noselect;
     @extend .jigsaw-light;
     position: absolute;
-    z-index: 2000;
+    z-index: 500;
     cursor: pointer;
     display: block;
     text-align: right;
@@ -219,6 +167,7 @@
       &:focus {
         outline: none;
       }
+
     }
 
     &.dropdown {
@@ -238,7 +187,7 @@
     border-top-right-radius: 2px;
     border-top-left-radius: 2px;
     position: relative;
-    z-index: 1000;
+    z-index: 200;
 
     &:active, &:focus {
       outline: 0;
@@ -261,7 +210,7 @@
 
 ._input-group {
   position: relative;
-  // margin-top: 5px;
+  margin-top: 5px;
 
   & + ._input-group {
     margin-top: 0;
@@ -279,10 +228,7 @@
 }
 
 .send__buttons {
-  margin-top: 14px;
-  @include breakpoint(iphone5) {
-    margin-top: 15px;
-  }
+  margin-top: 20px;
   @include breakpoint(portrait) {
     margin-top: 40px;
   }
@@ -290,19 +236,6 @@
 
 .send__btn {
   @extend .hivebtn;
-
-  &:active {
-    position: relative;
-    color: rgba(255,255,255, 0.3);
-    background-color: #2d5f8d;
-    box-shadow:inset 0 1px 1px 1px darken(#2d5f8d, 20%);
-    transform: translate(0px, 3px);
-    margin-bottom: 5px;
-    display: flex;
-    justify-content: center;
-    padding-left: 4px;
-    padding-right: 4px;
-  }
 
   @include breakpoint(portrait) {
     font-size: 26px;
@@ -335,14 +268,4 @@
       fill: darken($grey, 20%);
     }
   }
-}
-
-
-.fiat-tap-overlay {
-  position: absolute;
-  z-index: 3000;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  width: 100px;
 }
