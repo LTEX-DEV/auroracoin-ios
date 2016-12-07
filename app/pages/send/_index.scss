@@ -42,6 +42,26 @@
       width: 59px;
       height: 59px;
     }
+    
+    ._title {
+      padding-left: 5px;
+      padding-right: 6px;
+      padding-top: 4px;
+      font-size: 16px;
+
+      display: none;
+
+      @include breakpoint(iphone5) {
+        display: block;
+      }
+      @include breakpoint(portrait) {
+        font-size: 24px;
+      }
+}
+    
+    
+    
+    
 
     ._icon {
       width: 30px;
