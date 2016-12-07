@@ -24,8 +24,13 @@ module.exports = function(el){
     }
   })
 
+  emitter.on('balance-ready', function(){
+    ractive.set('address', getAddress())
+  })
+
   emitter.on('wallet-ready', function(){
     ractive.set('address', getAddress())
+    ractive.set('denomination', Hive.getWallet().denomination)
   })
 
   ractive.on('toggle-broadcast', function(){
@@ -50,13 +55,24 @@ module.exports = function(el){
   function waggleOn(){
     ractive.set('connecting', true)
     ractive.set('btn_message', 'Checking your location')
+   
+   var price = ractive.get('value')
+    var info={price:price}
+    
+    geo.setAdditionalInfo(info,function(){
+   
     geo.save(function(err){
       if(err) return handleWaggleError(err)
       ractive.set('connecting', false)
       ractive.set('broadcasting', true)
       ractive.set('btn_message', 'Turn Waggle off')
     })
+    
+    })
   }
+  
+  
+ 
 
   window.addEventListener('beforeunload', removeGeoData)
 
@@ -81,7 +97,7 @@ module.exports = function(el){
   })
 
   function getAddress(){
-    return Hive.getWallet().currentAddress
+    return Hive.getWallet().getNextAddress()
   }
 
   function handleWaggleError(err) {
