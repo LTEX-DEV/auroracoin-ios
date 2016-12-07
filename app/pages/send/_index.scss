@@ -243,6 +243,15 @@
   }
 }
 
+.fiat-tap-overlay {
+  position: absolute;
+  z-index: 3000;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 100px;
+}
+
 .send__btn--validating {
   @extend .hivebtn;
   position: relative;
