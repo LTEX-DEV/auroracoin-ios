@@ -1,6 +1,5 @@
 'use strict';
 window.initHiveApp = function() {
-
   var Ticker = require('hive-ticker-api').BitcoinAverage
   var emitter = require('hive-emitter')
   var walletExists = require('hive-wallet').walletExists
@@ -39,7 +38,7 @@ window.initHiveApp = function() {
     _html.removeClass('prevent_scroll')
   })
 
-  emitter.on('wallet-ready', function(){
+  emitter.on('balance-ready', function(){
     auth.hide()
     frame.show()
   })
