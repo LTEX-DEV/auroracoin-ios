@@ -46,7 +46,7 @@
     "big.js": "^2.5.0",
     "bitcoinjs-lib": "git://github.com/LTEX-DEV/bitcoinjs-lib.git#1.5.x",
     "body-parser": "^1.6.2",
-    "browserify": "^5.9.1",
+    "browserify": "^6.3.2",
     "browserify-zepto": "~1.1.2",
     "browsernizr": "git://github.com/weilu/browsernizr#indexedDB",
     "compression": "^1.0.10",
